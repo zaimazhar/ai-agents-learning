@@ -2,6 +2,9 @@
 
 namespace App\Console\Commands;
 
+use App\Ai\Tools\CurrentTime;
+use App\Ai\Tools\ReadFile;
+use App\Ai\Tools\Tool;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
@@ -62,25 +65,18 @@ class chat extends Command
                 } else {
                     // Handle tool calls here
                     foreach ($toolCalls as $toolCall) {
-                        // Handle each individual tool call here
-                        if ($toolCall['name'] == 'get_current_time') {
-                            $updateHistory = [
-                                'role' => 'tool',
-                                'tool_call_id' => $toolCall['tool_call_id'],
-                                'content' => now()->toDateTimeString(),
-                            ];
+                        foreach ($this->tools() as $tool) {
+                            if ($toolCall['name'] == $tool->definition()['function']['name']) {
+                                $result = $tool->use(['file' => $toolCall['file'] ?? null]);
 
-                            $this->history[] = $updateHistory;
-                        } elseif ($toolCall['name'] == 'read_file') {
-                            $updateHistory = [
-                                'role' => 'tool',
-                                'tool_call_id' => $toolCall['tool_call_id'],
-                                'content' => file_get_contents(
-                                    base_path($toolCall['file'])
-                                ),
-                            ];
+                                $updateHistory = [
+                                    'role' => 'tool',
+                                    'tool_call_id' => $toolCall['tool_call_id'],
+                                    'content' => $result,
+                                ];
 
-                            $this->history[] = $updateHistory;
+                                $this->history[] = $updateHistory;
+                            }
                         }
                     }
                 }
@@ -96,46 +92,16 @@ class chat extends Command
                 ['role' => 'system', 'content' => 'You are a helpful assistant.'],
                 ...$this->history,
             ],
-            'tools' => $this->tools(),
+            'tools' => array_map(fn (Tool $tool) => $tool->definition(), $this->tools()),
         ])->throw()->json();
     }
 
     private function tools()
     {
         return [
-            [
-                'type' => 'function',
-                'function' => [
-                    'name' => 'get_current_time',
-                    'description' => 'Get the current time from user input, if no country is specified then just use the Malaysian time.',
-                    'parameters' => [
-                        'type' => 'object',
-                        'properties' => [
-                            'country' => [
-                                'type' => 'string',
-                                'description' => 'The country for which to get the current time.',
-                            ],
-                        ],
-                    ],
-                ],
-            ],
-            [
-                'type' => 'function',
-                'function' => [
-                    'name' => 'read_file',
-                    'description' => 'Read the contents of a file from user input',
-                    'parameters' => [
-                        'type' => 'object',
-                        'properties' => [
-                            'file' => [
-                                'type' => 'string',
-                                'description' => 'The file to read.',
-                            ],
-                        ],
-                    ],
-                    'required' => ['file'],
-                ],
-            ],
+            new ReadFile,
+            new CurrentTime,
+            new RevenueTool,
         ];
     }
 }
