@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Ai\Tools\CurrentTime;
 use App\Ai\Tools\ReadFile;
+use App\Ai\Tools\RevenueTool;
 use App\Ai\Tools\Tool;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
